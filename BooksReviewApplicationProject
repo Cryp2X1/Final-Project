@@ -1,0 +1,427 @@
+// index.js
+const express = require('express');
+const bodyParser = require('body-parser');
+const cors = require('cors');
+const booksRoutes = require('./routes/books');
+const usersRoutes = require('./routes/users');
+
+const app = express();
+
+app.use(bodyParser.json());
+app.use(cors());
+
+app.use('/books', booksRoutes);
+app.use('/users', usersRoutes);
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
+
+
+
+// controllers/booksController.js
+const fs = require('fs').promises;
+const path = require('path');
+const booksFilePath = path.join(__dirname, '../data/books.json');
+
+exports.getAllBooks = async (req, res) => {
+  try {
+    const data = await fs.readFile(booksFilePath, 'utf8');
+    const books = JSON.parse(data);
+    res.json(books);
+  } catch (err) {
+    res.status(500).json({ message: 'Error reading data.' });
+  }
+};
+
+exports.getBookByISBN = async (req, res) => {
+  const { isbn } = req.params;
+  try {
+    const data = await fs.readFile(booksFilePath, 'utf8');
+    const books = JSON.parse(data);
+    const book = books.find((b) => b.isbn === isbn);
+    if (!book) return res.status(404).json({ message: 'Book not found.' });
+    res.json(book);
+  } catch (err) {
+    res.status(500).json({ message: 'Error reading data.' });
+  }
+};
+
+exports.getBooksByAuthor = async (req, res) => {
+  const { author } = req.params;
+  try {
+    const data = await fs.readFile(booksFilePath, 'utf8');
+    const books = JSON.parse(data);
+    const filteredBooks = books.filter(
+      (b) => b.author.toLowerCase() === author.toLowerCase()
+    );
+    if (filteredBooks.length === 0)
+      return res.status(404).json({ message: 'No books found for this author.' });
+    res.json(filteredBooks);
+  } catch (err) {
+    res.status(500).json({ message: 'Error reading data.' });
+  }
+};
+
+exports.getBooksByTitle = async (req, res) => {
+  const { title } = req.params;
+  try {
+    const data = await fs.readFile(booksFilePath, 'utf8');
+    const books = JSON.parse(data);
+    const filteredBooks = books.filter(
+      (b) => b.title.toLowerCase() === title.toLowerCase()
+    );
+    if (filteredBooks.length === 0)
+      return res.status(404).json({ message: 'No books found with this title.' });
+    res.json(filteredBooks);
+  } catch (err) {
+    res.status(500).json({ message: 'Error reading data.' });
+  }
+};
+
+exports.getBookReviews = async (req, res) => {
+  const { isbn } = req.params;
+  try {
+    const data = await fs.readFile(booksFilePath, 'utf8');
+    const books = JSON.parse(data);
+    const book = books.find((b) => b.isbn === isbn);
+    if (!book) return res.status(404).json({ message: 'Book not found.' });
+    res.json(book.reviews);
+  } catch (err) {
+    res.status(500).json({ message: 'Error reading data.' });
+  }
+};
+
+exports.addOrModifyReview = async (req, res) => {
+  const { isbn } = req.params;
+  const { comment } = req.body;
+  const username = req.user.username;
+
+  try {
+    const data = await fs.readFile(booksFilePath, 'utf8');
+    const books = JSON.parse(data);
+    const bookIndex = books.findIndex((b) => b.isbn === isbn);
+
+    if (bookIndex === -1)
+      return res.status(404).json({ message: 'Book not found.' });
+
+    const book = books[bookIndex];
+    const reviewIndex = book.reviews.findIndex((r) => r.user === username);
+
+    if (reviewIndex === -1) {
+      // Add new review
+      const reviewId = `rev${Date.now()}`;
+      book.reviews.push({ user: username, comment, reviewId });
+    } else {
+      // Modify existing review
+      book.reviews[reviewIndex].comment = comment;
+    }
+
+    // Save the updated data
+    await fs.writeFile(booksFilePath, JSON.stringify(books, null, 2));
+    res.json({ message: 'Review added/modified successfully.' });
+  } catch (err) {
+    res.status(500).json({ message: 'Error saving data.' });
+  }
+};
+
+exports.deleteReview = async (req, res) => {
+  const { isbn } = req.params;
+  const username = req.user.username;
+
+  try {
+    const data = await fs.readFile(booksFilePath, 'utf8');
+    const books = JSON.parse(data);
+    const bookIndex = books.findIndex((b) => b.isbn === isbn);
+
+    if (bookIndex === -1)
+      return res.status(404).json({ message: 'Book not found.' });
+
+    const book = books[bookIndex];
+    const reviewIndex = book.reviews.findIndex((r) => r.user === username);
+
+    if (reviewIndex === -1)
+      return res.status(404).json({ message: 'Review not found.' });
+
+    book.reviews.splice(reviewIndex, 1);
+
+    // Save the updated data
+    await fs.writeFile(booksFilePath, JSON.stringify(books, null, 2));
+    res.json({ message: 'Review deleted successfully.' });
+  } catch (err) {
+    res.status(500).json({ message: 'Error saving data.' });
+  }
+};
+
+// Async methods for tasks 10-13
+exports.getAllBooksAsync = (callback) => {
+  fs.readFile(booksFilePath, 'utf8', (err, data) => {
+    if (err) return callback(err);
+    const books = JSON.parse(data);
+    callback(null, books);
+  });
+};
+
+exports.getBookByISBNPromise = (isbn) => {
+  return fs.readFile(booksFilePath, 'utf8').then((data) => {
+    const books = JSON.parse(data);
+    return books.find((b) => b.isbn === isbn);
+  });
+};
+
+exports.getBooksByAuthorAsync = async (author) => {
+  const data = await fs.readFile(booksFilePath, 'utf8');
+  const books = JSON.parse(data);
+  return books.filter((b) => b.author.toLowerCase() === author.toLowerCase());
+};
+
+exports.getBooksByTitleAsync = async (title) => {
+  const data = await fs.readFile(booksFilePath, 'utf8');
+  const books = JSON.parse(data);
+  return books.filter((b) => b.title.toLowerCase() === title.toLowerCase());
+};
+
+
+
+
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": []
+}
+
+
+
+
+// controllers/usersController.js
+const users = require('../models/user');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+
+exports.registerUser = async (req, res) => {
+  const { username, password } = req.body;
+  const userExists = users.find((user) => user.username === username);
+  if (userExists)
+    return res.status(400).json({ message: 'User already exists.' });
+
+  const hashedPassword = await bcrypt.hash(password, 10);
+  users.push({ username, password: hashedPassword });
+  res.json({ message: 'User registered successfully.' });
+};
+
+exports.loginUser = async (req, res) => {
+  const { username, password } = req.body;
+  const user = users.find((u) => u.username === username);
+  if (!user)
+    return res.status(400).json({ message: 'Invalid username or password.' });
+
+  const validPassword = await bcrypt.compare(password, user.password);
+  if (!validPassword)
+    return res.status(400).json({ message: 'Invalid username or password.' });
+
+  const token = jwt.sign({ username }, 'your_jwt_secret_key', {
+    expiresIn: '1h',
+  });
+  res.json({ token });
+};
+
+
+
+
+// models/user.js
+const users = [];
+
+module.exports = users;
+
+
+
+
+// middleware/auth.js
+const jwt = require('jsonwebtoken');
+
+const auth = (req, res, next) => {
+  const token = req.header('Authorization');
+  if (!token)
+    return res.status(401).json({ message: 'Access denied. No token provided.' });
+
+  try {
+    const decoded = jwt.verify(token, 'your_jwt_secret_key');
+    req.user = decoded;
+    next();
+  } catch (ex) {
+    res.status(400).json({ message: 'Invalid token.' });
+  }
+};
+
+module.exports = auth;
+
+
+
+
+// routes/books.js
+const express = require('express');
+const router = express.Router();
+const booksController = require('../controllers/booksController');
+const auth = require('../middleware/auth');
+
+// General Users
+router.get('/', booksController.getAllBooks);
+router.get('/isbn/:isbn', booksController.getBookByISBN);
+router.get('/author/:author', booksController.getBooksByAuthor);
+router.get('/title/:title', booksController.getBooksByTitle);
+router.get('/:isbn/reviews', booksController.getBookReviews);
+
+// Registered Users
+router.post('/:isbn/reviews', auth, booksController.addOrModifyReview);
+router.delete('/:isbn/reviews', auth, booksController.deleteReview);
+
+// Async methods for tasks 10-13
+router.get('/async', (req, res) => {
+  booksController.getAllBooksAsync((err, books) => {
+    if (err) return res.status(500).json({ message: 'Error reading data.' });
+    res.json(books);
+  });
+});
+
+router.get('/isbn/:isbn/promise', (req, res) => {
+  booksController
+    .getBookByISBNPromise(req.params.isbn)
+    .then((book) => {
+      if (!book)
+        return res.status(404).json({ message: 'Book not found.' });
+      res.json(book);
+    })
+    .catch((err) => res.status(500).json({ message: 'Error reading data.' }));
+});
+
+router.get('/author/:author/async', async (req, res) => {
+  try {
+    const books = await booksController.getBooksByAuthorAsync(
+      req.params.author
+    );
+    if (books.length === 0)
+      return res.status(404).json({ message: 'No books found for this author.' });
+    res.json(books);
+  } catch (err) {
+    res.status(500).json({ message: 'Error reading data.' });
+  }
+});
+
+router.get('/title/:title/async', async (req, res) => {
+  try {
+    const books = await booksController.getBooksByTitleAsync(
+      req.params.title
+    );
+    if (books.length === 0)
+      return res.status(404).json({ message: 'No books found with this title.' });
+    res.json(books);
+  } catch (err) {
+    res.status(500).json({ message: 'Error reading data.' });
+  }
+});
+
+module.exports = router;
+
+
+
+
+// routes/users.js
+const express = require('express');
+const router = express.Router();
+const usersController = require('../controllers/usersController');
+
+router.post('/register', usersController.registerUser);
+router.post('/login', usersController.loginUser);
+
+module.exports = router;
+
+
+
+
+[
+  {
+    "isbn": "1234567890",
+    "title": "Book One",
+    "author": "Author One",
+    "reviews": [
+      {
+        "user": "user1",
+        "comment": "Great book!",
+        "reviewId": "rev1"
+      }
+    ]
+  },
+  {
+    "isbn": "0987654321",
+    "title": "Book Two",
+    "author": "Author Two",
+    "reviews": []
+  },
+  {
+    "isbn": "1122334455",
+    "title": "Book Three",
+    "author": "Author One",
+    "reviews": []
+  }
+]
+
+
+
+
+{
+  "name": "online-book-review",
+  "version": "1.0.0",
+  "description": "Online Book Review Application",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "fs": "^0.0.1-security",
+    "jsonwebtoken": "^9.0.1"
+  }
+}
+
+
+
+
+# Online Book Review Application
+
+## Overview
+
+This is a server-side application for an online bookshop that allows users to view books, search for books by ISBN, author, or title, view reviews, and for registered users, add, modify, or delete their own reviews.
+
+## Features
+
+- Retrieve a list of all books available
+- Search for books by ISBN, author, or title
+- View reviews for a specific book
+- Register as a new user
+- Login as a registered user
+- Add a new review for a book (logged-in users only)
+- Modify a book review (only your own reviews)
+- Delete a book review (only your own reviews)
+
+## Setup Instructions
+
+### Prerequisites
+
+- Node.js and npm installed on your machine
+
+### Installation
+
+1. Clone the repository:
+
+   ```bash
+   git clone https://github.com/yourusername/online-book-review.git
+
+
+
+
